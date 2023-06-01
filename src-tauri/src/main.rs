@@ -12,7 +12,7 @@ use tauri::async_runtime::block_on;
 fn main() {
     // let server = start_server().await;
    thread::spawn(|| {
-        block_on(start_server());
+        block_on(listen());
     });
     
 
@@ -85,14 +85,35 @@ fn parse_arp_linux() {
     println!("linux");
 }
 
-async fn start_server() -> std::io::Result<()> {
+async fn listen() -> std::io::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:80").expect("Could not bind");
     println!("Server started!");
 
     for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-        stream.write(b"Hello World!").expect("Could not write");
+        let stream = stream.unwrap();
+        thread::spawn(|| {
+            handle_client(stream);
+        });
     }
-
+    
     Ok(())
+}
+
+fn handle_client(mut stream: TcpStream) {
+    stream.write(b"Hello Client!").expect("Could not write");
+    
+    loop {
+        let mut buffer = [0; 1024];
+
+        let res = stream.read(&mut buffer);
+        if res.is_err() {
+            println!("Client disconnected");
+            break;
+        }
+
+        // rspond with: echo: {buffer}
+        stream.write(format!("Received: {}", String::from_utf8_lossy(&buffer)).as_bytes()).expect("Could not write");
+        println!("Request: {}\n", String::from_utf8_lossy(&buffer[..]));
+    }
+    
 }
