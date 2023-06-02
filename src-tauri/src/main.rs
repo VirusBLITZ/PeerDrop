@@ -4,20 +4,20 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::process::Command;
-use std::thread;
-use std::{fs::File, io::Read, path::Path};
+use std::{fs, thread};
+use std::{fs::File, io::Read};
 
 use tauri::async_runtime::block_on;
 
 fn main() {
+    // println!("Peers: {}", scan_peers().join("\n"));
     // let server = start_server().await;
-   thread::spawn(|| {
+    thread::spawn(|| {
         block_on(listen());
     });
-    
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![send_file])
+        .invoke_handler(tauri::generate_handler![send_file, scan_peers])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -30,63 +30,33 @@ fn send_file(path: String) {
     println!("File contents: {}", contents);
 }
 
-fn scan_peers() {
+#[tauri::command]
+fn scan_peers() -> Vec<String> {
     // read arp table and ping each ip
     // if ping is successful, add to list of ips
     // return list of ips
+    let ips: Vec<String>;
 
-    let mut peers: Vec<String> = Vec::new();
+    
 
-    // run os command to get arp table
-    if cfg!(windows) {
-        peers.append(&mut parse_arp_win());
-    } else {
-        parse_arp_linux();
-    }
+    // let peers: Vec<String> = Vec::new();
+    // for ip in &ips {
+    //     let conn = TcpStream::connect(format!("{}:{}", ip, 25569));
+    //     if conn.is_err() {
+    //         continue;
+    //     }
+    //     let mut conn = conn.unwrap();
+    //     conn.write_all(b"?PD").expect("Could not write");
+    //     let mut buffer = [0; 1024];
+    //     conn.read(&mut buffer).expect("Could not read");
+    // }
+
+    return ips;
 }
 
-fn parse_arp_win() -> Vec<String> {
-    // run os command to get arp table
-    let output = Command::new("arp")
-        .arg("-a")
-        .output()
-        .expect("failed to execute process");
-
-    let output = String::from_utf8_lossy(&output.stdout);
-
-    // parse arp table
-    let mut ips: Vec<String> = Vec::new();
-    for line in output.lines() {
-        if line.is_empty() {
-            continue;
-        };
-        if line.contains("---") {
-            continue;
-        };
-        if !line.contains(".") && !line.contains(":") {
-            continue;
-        };
-
-        let ip = line.split(" ").collect::<Vec<&str>>()[0];
-
-        let conn = TcpStream::connect(format!("{}:80", ip));
-        if conn.is_err() {
-            continue;
-        }
-        let mut conn = conn.unwrap();
-        conn.write_all(b"Hello World!").expect("Could not write");
-
-        ips.push(ip.to_string());
-    }
-    ips
-}
-
-fn parse_arp_linux() {
-    println!("linux");
-}
 
 async fn listen() -> std::io::Result<()> {
-    let listener = TcpListener::bind("0.0.0.0:80").expect("Could not bind");
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", 25569)).expect("Could not bind");
     println!("Server started!");
 
     for stream in listener.incoming() {
@@ -95,25 +65,26 @@ async fn listen() -> std::io::Result<()> {
             handle_client(stream);
         });
     }
-    
+
     Ok(())
 }
 
 fn handle_client(mut stream: TcpStream) {
     stream.write(b"Hello Client!").expect("Could not write");
-    
+
     loop {
         let mut buffer = [0; 1024];
 
         let res = stream.read(&mut buffer);
         if res.is_err() {
             println!("Client disconnected");
-            break;
+            return;
         }
 
         // rspond with: echo: {buffer}
-        stream.write(format!("Received: {}", String::from_utf8_lossy(&buffer)).as_bytes()).expect("Could not write");
+        stream
+            .write(format!("Received: {}", String::from_utf8_lossy(&buffer)).as_bytes())
+            .expect("Could not write");
         println!("Request: {}\n", String::from_utf8_lossy(&buffer[..]));
     }
-    
 }
