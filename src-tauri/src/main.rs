@@ -1,9 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod network;
+
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::process::Command;
+use std::sync::mpsc;
 use std::{fs, thread};
 use std::{fs::File, io::Read};
 
@@ -15,6 +18,8 @@ fn main() {
     thread::spawn(|| {
         block_on(listen());
     });
+
+    network::get_subnetmask("eth0");
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![send_file, scan_peers])
@@ -31,13 +36,23 @@ fn send_file(path: String) {
 }
 
 #[tauri::command]
-fn scan_peers() -> Vec<String> {
-    // read arp table and ping each ip
-    // if ping is successful, add to list of ips
-    // return list of ips
-    let ips: Vec<String>;
+async fn scan_peers() -> Vec<String> {
+    let ips: Vec<String> = vec![];
 
-    
+    let (tx, rx) = mpsc::channel::<String>();
+
+    let scanner = thread::spawn(
+        move || match Command::new("ping").arg("192.168.0.24").status() {
+            Ok(status) => {
+                if status.success() {
+                    println!("Success!");
+                }
+            }
+            Err(e) => {
+                println!("Failed to execute process: {}", e);
+            }
+        },
+    );
 
     // let peers: Vec<String> = Vec::new();
     // for ip in &ips {
@@ -50,10 +65,9 @@ fn scan_peers() -> Vec<String> {
     //     let mut buffer = [0; 1024];
     //     conn.read(&mut buffer).expect("Could not read");
     // }
-
+    scanner.join().unwrap();
     return ips;
 }
-
 
 async fn listen() -> std::io::Result<()> {
     let listener = TcpListener::bind(format!("0.0.0.0:{}", 25569)).expect("Could not bind");
