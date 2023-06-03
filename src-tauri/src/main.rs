@@ -3,26 +3,26 @@
 
 mod network;
 
+
 use std::io::Write;
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
-use std::process::{Command, ExitStatus};
+
 use std::sync::mpsc;
-use std::time::Duration;
-use std::{env, fs, thread};
+use std::{env, thread};
 use std::{fs::File, io::Read};
 
-use libarp::arp::ArpMessage;
+
 use libarp::client::ArpClient;
+use libarp::interfaces::Interface;
 use tauri::async_runtime::block_on;
 
 fn main() {
     // println!("Peers: {}", scan_peers().join("\n"));
     // let server = start_server().await;
     thread::spawn(|| {
-        block_on(listen());
+        let _ = block_on(listen());
     });
 
-    network::get_subnetmask("eth0");
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![send_file, scan_peers])
@@ -40,44 +40,35 @@ fn send_file(path: String) {
 
 #[tauri::command]
 async fn scan_peers() -> Vec<String> {
-    let ips: Vec<String> = vec![];
+    let mut ips: Vec<String> = vec![];
 
     let (tx, rx) = mpsc::channel::<String>();
 
-    let scanner = thread::spawn(move || {
-        match match env::consts::OS {
-            "windows" => Command::new("ping").arg("192.168.0.24").status(),
-            "linux" => ArpClient,
-            // Command::new("ping")
-            //     .arg("-c 4")
-            //     .arg("192.168.0.24")
-            //     .status(),
-            _ => panic!("Unsupported OS"),
-        } {
-            Ok(status) => {
-                if status.success() {
-                    println!("Success!");
-                }
+    // get subnet mask
+    let own_ip = Interface::new().unwrap().get_ip().unwrap();
+    for i in 0..255 {
+        let ip = Ipv4Addr::new(
+            own_ip.octets()[0],
+            own_ip.octets()[1],
+            own_ip.octets()[2],
+            i,
+        );
+        let tx = tx.clone();
+        thread::spawn(move || {
+            let mut client = ArpClient::new().unwrap();
+            let res = block_on(client.ip_to_mac(ip, None));
+            if res.is_ok() {
+                tx.send(ip.to_string()).unwrap();
             }
-            Err(e) => {
-                println!("Failed to execute process: {}", e);
-            }
-        }
-    });
+        });
+    }
 
-    // let peers: Vec<String> = Vec::new();
-    // for ip in &ips {
-    //     let conn = TcpStream::connect(format!("{}:{}", ip, 25569));
-    //     if conn.is_err() {
-    //         continue;
-    //     }
-    //     let mut conn = conn.unwrap();
-    //     conn.write_all(b"?PD").expect("Could not write");
-    //     let mut buffer = [0; 1024];
-    //     conn.read(&mut buffer).expect("Could not read");
-    // }
-    scanner.join().unwrap();
-    return ips;
+    while let Ok(ip) = rx.recv() {
+        println!("Found peer: {}", ip);
+        ips.push(ip);
+    }
+    
+    ips
 }
 
 async fn listen() -> std::io::Result<()> {
