@@ -4,12 +4,15 @@
 mod network;
 
 use std::io::Write;
-use std::net::{TcpListener, TcpStream};
-use std::process::Command;
+use std::net::{Ipv4Addr, TcpListener, TcpStream};
+use std::process::{Command, ExitStatus};
 use std::sync::mpsc;
-use std::{fs, thread};
+use std::time::Duration;
+use std::{env, fs, thread};
 use std::{fs::File, io::Read};
 
+use libarp::arp::ArpMessage;
+use libarp::client::ArpClient;
 use tauri::async_runtime::block_on;
 
 fn main() {
@@ -41,8 +44,16 @@ async fn scan_peers() -> Vec<String> {
 
     let (tx, rx) = mpsc::channel::<String>();
 
-    let scanner = thread::spawn(
-        move || match Command::new("ping").arg("192.168.0.24").status() {
+    let scanner = thread::spawn(move || {
+        match match env::consts::OS {
+            "windows" => Command::new("ping").arg("192.168.0.24").status(),
+            "linux" => ArpClient,
+            // Command::new("ping")
+            //     .arg("-c 4")
+            //     .arg("192.168.0.24")
+            //     .status(),
+            _ => panic!("Unsupported OS"),
+        } {
             Ok(status) => {
                 if status.success() {
                     println!("Success!");
@@ -51,8 +62,8 @@ async fn scan_peers() -> Vec<String> {
             Err(e) => {
                 println!("Failed to execute process: {}", e);
             }
-        },
-    );
+        }
+    });
 
     // let peers: Vec<String> = Vec::new();
     // for ip in &ips {

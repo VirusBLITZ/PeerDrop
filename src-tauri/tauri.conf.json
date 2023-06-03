@@ -39,7 +39,7 @@
       },
       "resources": [],
       "shortDescription": "",
-      "targets": ["msi", "appimage", "updater", "nsis"],
+      "targets": ["msi", "appimage", "updater"],
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
