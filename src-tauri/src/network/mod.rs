@@ -1,20 +1,29 @@
-// use std::env;
+use std::env;
 
-// use ifcfg::IfCfg;
+use ifcfg::IfCfg;
 
-// pub fn get_subnetmask(interface: &str) -> String {
-//     // get os
-//     let mut interfaces: Vec<&IfCfg> = vec![];
-//     let binding = ifcfg::IfCfg::get().unwrap();
-//     binding
-//         .iter()
-//         .filter(|iface| iface.addresses.iter().any(|addr| addr.hop.is_some()))
-//         .for_each(|iface: &IfCfg| interfaces.push(iface));
+pub fn get_own_ip() -> String {
+    let mut ip = "".to_string();
+    let binding = ifcfg::IfCfg::get().unwrap();
+    let mut guessed_iface = binding
+        .iter()
+        .filter(|iface| {
+            iface
+                .addresses
+                .iter()
+                .any(|addr| addr.hop.is_some() && addr.address.unwrap().is_ipv4())
+        })
+        .next();
 
-//     for iface in interfaces {
-//         println!("Interface: {}", iface.name);
-//         println!("IP: {:#?}", iface.addresses);
-//         println!();
-//     }
-//     "".to_string()
-// }
+    match guessed_iface {
+        Some(iface) => {
+            iface.addresses.iter().for_each(|addr| {
+                if addr.address.unwrap().is_ipv4() {
+                  ip = addr.address.unwrap().to_string();
+                }
+            });
+            ip
+        }
+        None => panic!("No IP found for interface {}", guessed_iface.unwrap().name),
+    }
+}

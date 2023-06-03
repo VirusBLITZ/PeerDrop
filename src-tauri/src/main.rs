@@ -12,8 +12,6 @@ use std::{env, thread};
 use std::{fs::File, io::Read};
 
 
-use libarp::client::ArpClient;
-use libarp::interfaces::Interface;
 use tauri::async_runtime::block_on;
 
 fn main() {
@@ -22,6 +20,8 @@ fn main() {
     thread::spawn(|| {
         let _ = block_on(listen());
     });
+
+    println!("Own IP is: {}", network::get_own_ip());
 
 
     tauri::Builder::default()
@@ -45,23 +45,23 @@ async fn scan_peers() -> Vec<String> {
     let (tx, rx) = mpsc::channel::<String>();
 
     // get subnet mask
-    let own_ip = Interface::new().unwrap().get_ip().unwrap();
-    for i in 0..255 {
-        let ip = Ipv4Addr::new(
-            own_ip.octets()[0],
-            own_ip.octets()[1],
-            own_ip.octets()[2],
-            i,
-        );
-        let tx = tx.clone();
-        thread::spawn(move || {
-            let mut client = ArpClient::new().unwrap();
-            let res = block_on(client.ip_to_mac(ip, None));
-            if res.is_ok() {
-                tx.send(ip.to_string()).unwrap();
-            }
-        });
-    }
+    // let own_ip = Interface::new().unwrap().get_ip().unwrap();
+    // for i in 0..255 {
+    //     let ip = Ipv4Addr::new(
+    //         own_ip.octets()[0],
+    //         own_ip.octets()[1],
+    //         own_ip.octets()[2],
+    //         i,
+    //     );
+    //     let tx = tx.clone();
+    //     thread::spawn(move || {
+    //         let mut client = ArpClient::new().unwrap();
+    //         let res = block_on(client.ip_to_mac(ip, None));
+    //         if res.is_ok() {
+    //             tx.send(ip.to_string()).unwrap();
+    //         }
+    //     });
+    // }
 
     while let Ok(ip) = rx.recv() {
         println!("Found peer: {}", ip);
