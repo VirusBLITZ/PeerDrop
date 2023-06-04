@@ -18,11 +18,13 @@ pub fn get_own_ip() -> String {
     match guessed_iface {
         Some(iface) => {
             println!("Found interface {}", iface.name);
-            iface.addresses.iter().for_each(|addr| {
-                if addr.address.unwrap().is_ipv4() {
+            println!("Found interface {:#?}", iface.addresses);
+            for addr in &iface.addresses {
+                if addr.hop.is_some() && addr.address.unwrap().is_ipv4() {
                     ip = addr.address.unwrap().to_string();
+                    break;
                 }
-            });
+            }
             ip
         }
         None => panic!("No IP found for interface {}", guessed_iface.unwrap().name),
