@@ -11,15 +11,16 @@ pub fn get_own_ip() -> String {
             iface
                 .addresses
                 .iter()
-                .any(|addr| addr.hop.is_some() && addr.address.unwrap().is_ipv4())
+                .any(|addr| !iface.name.contains("lo") && addr.hop.is_some() && addr.address.unwrap().is_ipv4())
         })
         .next();
 
     match guessed_iface {
         Some(iface) => {
+            println!("Found interface {}", iface.name);
             iface.addresses.iter().for_each(|addr| {
                 if addr.address.unwrap().is_ipv4() {
-                  ip = addr.address.unwrap().to_string();
+                    ip = addr.address.unwrap().to_string();
                 }
             });
             ip
